@@ -1,0 +1,6 @@
+#Lists Python libraries you must install.
+fastapi
+uvicorn[standard]
+SQLAlchemy>=2.0
+pydantic
+python-dotenv
