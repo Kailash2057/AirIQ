@@ -9,9 +9,10 @@ interface MetricCardProps {
   status: "good" | "warning" | "danger";
   timestamp: Date;
   showFahrenheit?: boolean; // For temperature: show F as primary, C as secondary
+  lastRefreshTime?: Date; // Time when data was last refreshed
 }
 
-export function MetricCard({ title, value, unit, icon: Icon, status, timestamp, showFahrenheit = false }: MetricCardProps) {
+export function MetricCard({ title, value, unit, icon: Icon, status, timestamp, showFahrenheit = false, lastRefreshTime }: MetricCardProps) {
   const statusColors = {
     good: "bg-green-500/10 text-green-600 border-green-500/20",
     warning: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -52,7 +53,7 @@ export function MetricCard({ title, value, unit, icon: Icon, status, timestamp, 
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-2">
-            Updated: {timestamp.toLocaleTimeString()}
+            Last updated: {lastRefreshTime ? lastRefreshTime.toLocaleString() : timestamp.toLocaleString()}
           </p>
         </div>
       </div>

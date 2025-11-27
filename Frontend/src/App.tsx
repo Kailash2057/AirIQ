@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Thermometer,
   Droplets,
@@ -47,11 +47,12 @@ export default function App() {
   const [dailyData, setDailyData] = useState<DailyDataPoint[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [nextUpdate, setNextUpdate] = useState(30);
+  const [nextUpdateSeconds, setNextUpdateSeconds] = useState(30 * 60); // 30 minutes in seconds
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -68,7 +69,7 @@ export default function App() {
       setDailyData(transformDailyData(dailyReadings));
       setMonthlyData(transformMonthlyData(monthlyReadings));
       setLastUpdate(new Date());
-      setNextUpdate(30);
+      setNextUpdateSeconds(30 * 60); // Reset to 30 minutes (1800 seconds)
     } catch (err) {
       console.error("Error fetching data:", err);
       setError(
@@ -79,34 +80,46 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     fetchData();
-  };
+  }, [fetchData]);
 
   // Initial data fetch
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  // Auto-refresh every 30 minutes
+  // Auto-refresh every 30 minutes (1800 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
       refreshData();
     }, 30 * 60 * 1000); // 30 minutes
 
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshData]);
 
-  // Countdown timer
+  // Countdown timer (updates every second)
   useEffect(() => {
     const interval = setInterval(() => {
-      setNextUpdate((prev) => {
-        if (prev <= 0) return 30;
+      setNextUpdateSeconds((prev) => {
+        if (prev <= 0) {
+          refreshData(); // Trigger refresh when countdown reaches 0
+          return 30 * 60; // Reset to 30 minutes
+        }
         return prev - 1;
       });
-    }, 60 * 1000); // Every minute
+    }, 1000); // Every second
+
+    return () => clearInterval(interval);
+  }, [refreshData]);
+
+  // Live clock - updates current time every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000); // Update every second
 
     return () => clearInterval(interval);
   }, []);
@@ -149,13 +162,20 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="secondary"
                 className="flex items-center gap-2"
               >
                 <Clock className="w-4 h-4" />
-                Next update in {nextUpdate} min
+                <span>Next update in {Math.floor(nextUpdateSeconds / 60)}:{(nextUpdateSeconds % 60).toString().padStart(2, '0')}</span>
+              </Badge>
+              <Badge
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Clock className="w-4 h-4" />
+                <span>Current: {currentTime.toLocaleTimeString()}</span>
               </Badge>
               <Button
                 onClick={refreshData}
@@ -192,6 +212,7 @@ export default function App() {
             )}
             timestamp={currentData.timestamp}
             showFahrenheit={true}
+            lastRefreshTime={lastUpdate}
           />
           <MetricCard
             title="Humidity"
@@ -200,6 +221,7 @@ export default function App() {
             icon={Droplets}
             status={getStatus("humidity", currentData.humidity)}
             timestamp={currentData.timestamp}
+            lastRefreshTime={lastUpdate}
           />
           <MetricCard
             title="CO2 Level"
@@ -208,6 +230,7 @@ export default function App() {
             icon={Cloud}
             status={getStatus("co2", currentData.co2)}
             timestamp={currentData.timestamp}
+            lastRefreshTime={lastUpdate}
           />
         </div>
 
