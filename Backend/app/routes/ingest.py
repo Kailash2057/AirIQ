@@ -7,18 +7,16 @@ Authorization: Bearer pi-key-1
 
 Validates JSON body using IngestPayload.
 
-Creates a new Sensor if it doesn’t exist.
+Creates a new Sensor if it doesn't exist.
 
 Inserts a new Reading record.
 
 Returns { "ok": true, "sensor_id": "..." }"""
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-from ..db import get_db
 from ..schemas import IngestPayload
 from ..models import Reading, Sensor
+from ..services.aqi import pm25_to_aqi
 import os
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
@@ -34,13 +32,20 @@ def require_device_key(authorization: str = Header(default="")):
     return True
 
 @router.post("")
-def ingest(payload: IngestPayload, _: bool = Depends(require_device_key), db: Session = Depends(get_db)):
+async def ingest(payload: IngestPayload, _: bool = Depends(require_device_key)):
     # Upsert sensor if missing
-    sensor = db.get(Sensor, payload.sensor_id)
+    sensor = await Sensor.get(payload.sensor_id)
     if not sensor:
-        sensor = Sensor(id=payload.sensor_id, status="active")
-        db.add(sensor)
-        db.flush()
+        sensor = Sensor(
+            id=payload.sensor_id,
+            status="active"
+        )
+        await sensor.insert()
+    
+    # Calculate AQI from PM2.5 value
+    aqi_value, aqi_category = pm25_to_aqi(payload.pm25)
+    
+    # Create reading with calculated AQI
     reading = Reading(
         sensor_id=payload.sensor_id,
         ts=payload.ts,
@@ -52,8 +57,14 @@ def ingest(payload: IngestPayload, _: bool = Depends(require_device_key), db: Se
         rh=payload.rh,
         battery=payload.battery,
         firmware=payload.firmware,
-        raw_json=payload.dict(),
+        raw_json=payload.model_dump(),
     )
-    db.add(reading)
-    db.commit()
-    return {"ok": True, "sensor_id": payload.sensor_id}
+    await reading.insert()
+    
+    return {
+        "ok": True,
+        "sensor_id": payload.sensor_id,
+        "aqi": aqi_value,
+        "aqi_category": aqi_category,
+        "timestamp": payload.ts.isoformat() if hasattr(payload.ts, 'isoformat') else str(payload.ts)
+    }

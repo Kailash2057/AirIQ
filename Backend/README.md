@@ -1,4 +1,4 @@
-# 🧠 AirIQ – Sprint 3 Backend (Detailed README)
+# 🧠 AirIQ Backend
 
 ## 🌍 Project Overview
 This backend is part of the **IoT-Based Campus Air Quality Monitor (AirIQ)** project.  
@@ -6,7 +6,7 @@ It collects air-quality data from Raspberry Pi sensor nodes across the campus an
 
 The backend:
 1. Accepts data from IoT sensors (Raspberry Pi nodes)  
-2. Stores readings in a local SQLite database  
+2. Stores readings in MongoDB database  
 3. Provides REST APIs for charts and maps  
 4. Lets you update sensor metadata such as coordinates and names  
 
@@ -15,7 +15,7 @@ The backend:
 ## ⚙️ Technologies Used
 - **Python 3.11+**
 - **FastAPI** – lightweight web framework for APIs  
-- **SQLite + SQLAlchemy** – database and ORM  
+- **MongoDB + Beanie** – database and ODM  
 - **Pydantic** – data validation  
 - **Uvicorn** – server to run FastAPI  
 - **python-dotenv** – load environment variables from `.env`
@@ -39,21 +39,27 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3️⃣ Create and configure `.env`
-```bash
-cp .env.example .env
-```
-Then open `.env` and review:
-```bash
+### 3️⃣ Configure MongoDB
+Make sure MongoDB is running. See `MONGODB_SETUP.md` for installation instructions.
+
+### 4️⃣ Create and configure `.env`
+Create a `.env` file with:
+```env
 API_V1_PREFIX=/api/v1
 DEVICE_API_KEYS=pi-key-1,pi-key-2
-SQLITE_PATH=./airiq.db
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DATABASE=airiq
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-### 4️⃣ Run the server
+### 5️⃣ Run the server
 ```bash
 uvicorn app.main:app --reload --port 8000
+```
+
+Or use the startup script:
+```bash
+./start.sh
 ```
 
 Visit:
@@ -65,11 +71,11 @@ Visit:
 ## 🧾 Project Folder Structure
 
 ```
-airiq_sprint3_backend/
+Backend/
 ├─ README.md
-├─ .env.example
 ├─ requirements.txt
 ├─ sample_client.py
+├─ start.sh
 └─ app/
    ├─ main.py
    ├─ db.py
@@ -89,14 +95,14 @@ airiq_sprint3_backend/
 ## 🧩 Inside the `app/` Folder
 
 ### ⚙️ `main.py`
-Bootstraps FastAPI, creates DB tables, loads `.env`, and registers routers.  
+Bootstraps FastAPI, initializes MongoDB connection, loads `.env`, and registers routers.  
 Routers include: `/ingest`, `/sensors`, `/map`, `/readings`.
 
 ### 🗃️ `db.py`
-Sets up SQLite connection, ORM `Base`, and `SessionLocal` for DB access.
+Sets up MongoDB connection using Motor and Beanie ODM.
 
 ### 🧱 `models.py`
-Defines two tables:  
+Defines two document models:  
 - **Sensor** → device info (id, name, location, status).  
 - **Reading** → individual measurements (timestamped data).
 
@@ -116,11 +122,14 @@ Converts PM2.5 values into AQI numbers and categories.
 
 ## 🧪 Quick Testing Commands
 
-### Post fake reading
+### Post sample reading
 ```bash
-curl -X POST "http://localhost:8000/api/v1/ingest"   -H "Authorization: Bearer pi-key-1"   -H "Content-Type: application/json"   -d '{
+curl -X POST "http://localhost:8000/api/v1/ingest" \
+  -H "Authorization: Bearer pi-key-1" \
+  -H "Content-Type: application/json" \
+  -d '{
     "sensor_id": "RPI-ENG-HALL-01",
-    "ts": "2025-10-12T18:00:00Z",
+    "ts": "2025-01-15T18:00:00Z",
     "pm25": 12.5, "pm10": 20.0, "co2": 750,
     "no2": 0.012, "temp_c": 24.1, "rh": 48.0,
     "battery": 95, "firmware": "1.0.0"
@@ -139,10 +148,20 @@ curl "http://localhost:8000/api/v1/map/latest"
 
 ### Historical readings for charts
 ```bash
-curl "http://localhost:8000/api/v1/readings?sensor_id=RPI-ENG-HALL-01&start=2025-10-12T00:00:00Z&end=2025-10-12T23:59:59Z"
+curl "http://localhost:8000/api/v1/readings?sensor_id=RPI-ENG-HALL-01&start=2025-01-15T00:00:00Z&end=2025-01-15T23:59:59Z"
 ```
 
 ### Update coordinates
 ```bash
-curl -X PATCH "http://localhost:8000/api/v1/sensors/RPI-ENG-HALL-01"   -H "Content-Type: application/json"   -d '{ "lat": 32.7313, "lon": -97.1106, "location_label": "Engineering Hall Lobby" }'
+curl -X PATCH "http://localhost:8000/api/v1/sensors/RPI-ENG-HALL-01" \
+  -H "Content-Type: application/json" \
+  -d '{ "lat": 32.7313, "lon": -97.1106, "location_label": "Engineering Hall Lobby" }'
 ```
+
+---
+
+## 📚 Additional Documentation
+
+- `MONGODB_SETUP.md` - MongoDB installation and setup guide
+- `QUICK_START.md` - Quick reference guide
+- `SETUP.md` - Detailed setup instructions

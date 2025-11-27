@@ -1,9 +1,9 @@
 '''
-Defines database tables (ORM models):
+Defines MongoDB document models using Beanie ODM:
 
 Sensor
 Field	      Description
-id	         Unique sensor ID (e.g., “RPI-ENG-HALL-01”)
+id	         Unique sensor ID (e.g., "RPI-ENG-HALL-01")
 name / model	Optional description
 lat / lon	    Coordinates for map display
 location_label	Human-friendly location name
@@ -12,8 +12,8 @@ status	Active, inactive, etc.
 
 Reading
 Field	     Description
-id	         Auto number
-sensor_id	Foreign key → Sensor.id
+id	         Auto-generated MongoDB ObjectId
+sensor_id	Reference to Sensor.id
 ts	       Timestamp of the reading
 pm25, pm10, co2, no2, temp_c, rh	Measured values
 battery	Battery percentage
@@ -23,38 +23,46 @@ raw_json	Original JSON payload
 Every Sensor can have many Readings.
 '''
 
+from beanie import Document
+from pydantic import Field
+from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, text, Index
-from sqlalchemy.orm import relationship
-from .db import Base
+class Sensor(Document):
+    """Sensor document model"""
+    id: str = Field(..., description="Unique sensor ID (e.g., 'RPI-ENG-HALL-01')")
+    name: Optional[str] = None
+    model: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    location_label: Optional[str] = None
+    installed_at: datetime = Field(default_factory=datetime.utcnow)
+    status: str = "active"
 
-class Sensor(Base):
-    __tablename__ = "sensors"
-    id = Column(String, primary_key=True)  # e.g., "RPI-ENG-HALL-01"
-    name = Column(String, nullable=True)
-    model = Column(String, nullable=True)
-    lat = Column(Float, nullable=True)
-    lon = Column(Float, nullable=True)
-    location_label = Column(String, nullable=True)
-    installed_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    status = Column(String, default="active")
-    readings = relationship("Reading", back_populates="sensor", cascade="all,delete-orphan")
+    class Settings:
+        name = "sensors"  # Collection name
+        indexes = [
+            "id",  # Index on sensor ID
+        ]
 
-class Reading(Base):
-    __tablename__ = "readings"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    sensor_id = Column(String, ForeignKey("sensors.id"), index=True, nullable=False)
-    ts = Column(DateTime, index=True, nullable=False)
-    pm25 = Column(Float, nullable=True)
-    pm10 = Column(Float, nullable=True)
-    co2 = Column(Float, nullable=True)
-    no2 = Column(Float, nullable=True)
-    temp_c = Column(Float, nullable=True)
-    rh = Column(Float, nullable=True)
-    battery = Column(Float, nullable=True)
-    firmware = Column(String, nullable=True)
-    raw_json = Column(JSON, nullable=True)
+class Reading(Document):
+    """Reading document model"""
+    sensor_id: str = Field(..., description="Reference to Sensor.id")
+    ts: datetime = Field(..., description="Timestamp of the reading")
+    pm25: Optional[float] = None
+    pm10: Optional[float] = None
+    co2: Optional[float] = None
+    no2: Optional[float] = None
+    temp_c: Optional[float] = None
+    rh: Optional[float] = None
+    battery: Optional[float] = None
+    firmware: Optional[str] = None
+    raw_json: Optional[dict] = None
 
-    sensor = relationship("Sensor", back_populates="readings")
-
-Index("idx_readings_sensor_ts", Reading.sensor_id, Reading.ts.desc())
+    class Settings:
+        name = "readings"  # Collection name
+        indexes = [
+            "sensor_id",  # Index on sensor_id for fast lookups
+            "ts",  # Index on timestamp for time-based queries
+            [("sensor_id", 1), ("ts", -1)],  # Compound index for sensor + time queries
+        ]

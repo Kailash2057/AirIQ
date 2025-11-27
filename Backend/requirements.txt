@@ -1,6 +1,7 @@
 #Lists Python libraries you must install.
 fastapi
 uvicorn[standard]
-SQLAlchemy>=2.0
+beanie
+motor
 pydantic
 python-dotenv

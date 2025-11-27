@@ -35,7 +35,7 @@ class SensorOut(BaseModel):
     status: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ReadingOut(BaseModel):
     sensor_id: str
@@ -52,4 +52,4 @@ class ReadingOut(BaseModel):
     aqi_category: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
